@@ -21,9 +21,13 @@
  */
 package org.wildfly.test.security.common.elytron;
 
-import org.jboss.as.test.integration.management.util.CLIWrapper;
-
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
+import static org.jboss.as.test.integration.security.common.Utils.createTemporaryFolder;
+
+import java.io.File;
+import java.io.IOException;
+import org.apache.commons.io.FileUtils;
+import org.jboss.as.test.integration.management.util.CLIWrapper;
 
 /**
  * Helper class for adding "file-audit-log" attributes into CLI commands.
@@ -36,13 +40,25 @@ public class FileAuditLog extends AbstractConfigurableElement {
     private final Boolean paramSynchronized;
     private final String path;
     private final String relativeTo;
+    private final File tempFolder;
 
     private FileAuditLog(Builder builder) {
         super(builder);
         this.format = builder.format;
         this.paramSynchronized = builder.paramSynchronized;
-        this.path = builder.path;
-        this.relativeTo = builder.relativeTo;
+        if (builder.path != null) {
+            this.path = builder.path;
+            this.relativeTo = builder.relativeTo;
+            this.tempFolder = null;
+        } else {
+            try {
+                this.tempFolder = createTemporaryFolder("ely-" + getName());
+            } catch (IOException e) {
+                throw new RuntimeException("Unable to create temporary folder", e);
+            }
+            this.path = new File(tempFolder, "audit.log").getAbsolutePath();
+            this.relativeTo = null;
+        }
     }
 
     @Override
@@ -71,6 +87,11 @@ public class FileAuditLog extends AbstractConfigurableElement {
     @Override
     public void remove(CLIWrapper cli) throws Exception {
         cli.sendLine(String.format("/subsystem=elytron/file-audit-log=%s:remove()", name));
+        FileUtils.deleteQuietly(tempFolder);
+    }
+
+    public String getPath() {
+        return this.path;
     }
 
     /**
